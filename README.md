@@ -36,6 +36,9 @@
 
 而我使用 2 块 Tesla P100-PCIE在ImageNet进行训练。环境版本如下。    
 ```
+CUDA 10.0
+cuDNN 7.6
+NCCL 2.4
 torch 1.2.0
 torchvision 0.4.0
 apex 0.1
@@ -121,9 +124,7 @@ send 和 receive 等等。通过 MPI 实现 CPU 通信，通过 NCCL 实现 GPU 
 官方也曾经提到用 DistributedDataParallel 解决 DataParallel 速度慢，GPU 负载不均衡的问题，目前已经很成熟了～
 
 与 DataParallel 的单进程控制多 GPU 不同，在 distributed 的帮助下，我们只需要编写一份代码，
-torch 就会自动将其分配给 
-![[公式]](https://www.zhihu.com/equation?tex=n) 个进程，
-分别在 ![[公式]](https://www.zhihu.com/equation?tex=n) 个 GPU 上运行。
+torch 就会自动将其分配给 n 个进程，分别在 n 个 GPU 上运行。
 
 在 API 层面，pytorch 为我们提供了 torch.distributed.launch 启动器，
 用于在命令行分布式地执行 python 文件。在执行过程中，启动器会将当前进程的（其实就是 GPU的）index 通过参数传递给 python，
@@ -219,7 +220,7 @@ for epoch in range(100):
 在使用时，调用 torch.distributed.launch 启动器启动：
 
 ```text
-CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.launch --nproc_per_node=4 main.py
+CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 distributed.py
 ```
 
 ### 5、使用 torch.multiprocessing 取代启动器
