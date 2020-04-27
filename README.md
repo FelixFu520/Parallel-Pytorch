@@ -45,7 +45,7 @@ apex 0.1
 
 ```
 ## 单机多卡
-### 3、简单方便的 nn.DataParallel
+### 3、简单方便的 [nn.DataParallel](./dataparallel.py)
 
 > DataParallel 可以帮助我们（使用单进程控）将模型和数据加载到多个 GPU 中，
 控制数据在 GPU 之间的流动，协同不同 GPU 上的模型进行并行训练（细粒度的方法有 scatter，gather 等等）。
@@ -117,7 +117,7 @@ for epoch in range(100):
 python dataparallel.py
 ```
 
-### 4、使用 torch.distributed 加速并行训练
+### 4、使用 [torch.distributed](./distributed.py) 加速并行训练
 
 > 在 pytorch 1.0 之后，官方终于对分布式的常用方法进行了封装，支持 all-reduce，broadcast，
 send 和 receive 等等。通过 MPI 实现 CPU 通信，通过 NCCL 实现 GPU 通信。
@@ -223,7 +223,7 @@ for epoch in range(100):
 CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 distributed.py
 ```
 
-### 5、使用 torch.multiprocessing 取代启动器
+### 5、使用 [torch.multiprocessing](./multiprocessing_distributed.py) 取代启动器
 
 > 有的同学可能比较熟悉 torch.multiprocessing，也可以手动使用 torch.multiprocessing 进行多进程控制。绕开 torch.distributed.launch 自动控制开启和退出进程的一些小毛病～
 
@@ -318,6 +318,10 @@ python multiprocessing_distributed.py
 
 。
 
+#### 5.1 [参考官方的例子](./distributed_all.py)
+NCCL_SOCKET_IFNAME=ib0 NCCL_IB_DISABLE=1 python main.py -b 512 --dist-url 'tcp://192.168.33.11:28237' --dist-backend 'nccl' --multiprocessing-distributed --world-size 2 --rank 0
+
+NCCL_SOCKET_IFNAME=ib0 NCCL_IB_DISABLE=1 python main.py -b 512 --dist-url 'tcp://192.168.33.11:28237' --dist-backend 'nccl' --multiprocessing-distributed --world-size 2 --rank 1
 ### 6、使用 Apex 再加速
 
 > Apex 是 NVIDIA 开源的用于混合精度训练和分布式训练库。Apex 对混合精度训练的过程进行了封装，改两三行配置就可以进行混合精度的训练，从而大幅度降低显存占用，节约运算时间。此外，Apex 也提供了对分布式训练的封装，针对 NVIDIA 的 NCCL 通信库进行了优化。
