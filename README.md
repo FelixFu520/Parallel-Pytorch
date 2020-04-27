@@ -322,7 +322,7 @@ python multiprocessing_distributed.py
 NCCL_SOCKET_IFNAME=ib0 NCCL_IB_DISABLE=1 python main.py -b 512 --dist-url 'tcp://192.168.33.11:28237' --dist-backend 'nccl' --multiprocessing-distributed --world-size 2 --rank 0
 
 NCCL_SOCKET_IFNAME=ib0 NCCL_IB_DISABLE=1 python main.py -b 512 --dist-url 'tcp://192.168.33.11:28237' --dist-backend 'nccl' --multiprocessing-distributed --world-size 2 --rank 1
-### 6、使用 Apex 再加速
+### 6、使用 [Apex](./apex_distributed.py) 再加速
 
 > Apex 是 NVIDIA 开源的用于混合精度训练和分布式训练库。Apex 对混合精度训练的过程进行了封装，改两三行配置就可以进行混合精度的训练，从而大幅度降低显存占用，节约运算时间。此外，Apex 也提供了对分布式训练的封装，针对 NVIDIA 的 NCCL 通信库进行了优化。
 
@@ -397,10 +397,10 @@ for epoch in range(100):
 在使用时，调用 torch.distributed.launch 启动器启动：
 
 ```text
-UDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.launch --nproc_per_node=4 main.py
+CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 apex_distributed.py
 ```
 
-### 7、Horovod 的优雅实现
+### 7、[Horovod](horovod_distributed.py) 的优雅实现
 
 > Horovod 是 Uber 开源的深度学习工具，它的发展吸取了 Facebook "Training ImageNet In 1 Hour" 与百度 "Ring Allreduce" 的优点，可以无痛与 PyTorch/Tensorflow 等深度学习框架结合，实现并行训练。
 
@@ -502,4 +502,5 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 horovodrun -np 4 -H localhost:4 --verbose python ma
 ```
 
 ## 多机多卡分布式
-### 8、torch.multiprocessing & apex
+### 8、torch.multiprocessing & apex & torch.nn.parallel.DistributedDataParallel
+
