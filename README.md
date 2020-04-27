@@ -313,7 +313,7 @@ def main_worker(proc, ngpus_per_node, args):
 在使用时，直接使用 python 运行就可以了：
 
 ```text
-python main.py
+python multiprocessing_distributed.py
 ```
 
 。

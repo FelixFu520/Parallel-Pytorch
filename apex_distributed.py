@@ -1,4 +1,4 @@
-# https://github.com/pytorch/examples/blob/master/imagenet/main.py
+# https://github.com/NVIDIA/apex/blob/master/examples/imagenet/main_amp.py
 
 import csv
 
@@ -22,11 +22,14 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
 
+from apex import amp
+from apex.parallel import DistributedDataParallel
+
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__") and callable(models.__dict__[name]))
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
-parser.add_argument('--data', metavar='DIR', default='./ImageNet2012', help='path to dataset')
+parser.add_argument('--data', metavar='DIR', default='/home/zhangzhi/Data/ImageNet2012', help='path to dataset')
 parser.add_argument('-a',
                     '--arch',
                     metavar='ARCH',
@@ -39,14 +42,14 @@ parser.add_argument('-j',
                     type=int,
                     metavar='N',
                     help='number of data loading workers (default: 4)')
-parser.add_argument('--epochs', default=1, type=int, metavar='N', help='number of total epochs to run')
+parser.add_argument('--epochs', default=90, type=int, metavar='N', help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N', help='manual epoch number (useful on restarts)')
 parser.add_argument('-b',
                     '--batch-size',
-                    default=800,
+                    default=6400,
                     type=int,
                     metavar='N',
-                    help='mini-batch size (default: 256), this is the total '
+                    help='mini-batch size (default: 6400), this is the total '
                     'batch size of all GPUs on the current node when '
                     'using Data Parallel or Distributed Data Parallel')
 parser.add_argument('--lr',
@@ -57,6 +60,8 @@ parser.add_argument('--lr',
                     help='initial learning rate',
                     dest='lr')
 parser.add_argument('--momentum', default=0.9, type=float, metavar='M', help='momentum')
+parser.add_argument('--local_rank', default=-1, type=int,
+                    help='node rank for distributed training')
 parser.add_argument('--wd',
                     '--weight-decay',
                     default=1e-4,
@@ -72,6 +77,61 @@ parser.add_argument('--seed', default=None, type=int, help='seed for initializin
 best_acc1 = 0
 
 
+class data_prefetcher():
+    def __init__(self, loader):
+        self.loader = iter(loader)
+        self.stream = torch.cuda.Stream()
+        self.mean = torch.tensor([0.485 * 255, 0.456 * 255, 0.406 * 255]).cuda().view(1, 3, 1, 1)
+        self.std = torch.tensor([0.229 * 255, 0.224 * 255, 0.225 * 255]).cuda().view(1, 3, 1, 1)
+        # With Amp, it isn't necessary to manually convert data to half.
+        # if args.fp16:
+        #     self.mean = self.mean.half()
+        #     self.std = self.std.half()
+        self.preload()
+
+    def preload(self):
+        try:
+            self.next_input, self.next_target = next(self.loader)
+        except StopIteration:
+            self.next_input = None
+            self.next_target = None
+            return
+        # if record_stream() doesn't work, another option is to make sure device inputs are created
+        # on the main stream.
+        # self.next_input_gpu = torch.empty_like(self.next_input, device='cuda')
+        # self.next_target_gpu = torch.empty_like(self.next_target, device='cuda')
+        # Need to make sure the memory allocated for next_* is not still in use by the main stream
+        # at the time we start copying to next_*:
+        # self.stream.wait_stream(torch.cuda.current_stream())
+        with torch.cuda.stream(self.stream):
+            self.next_input = self.next_input.cuda(non_blocking=True)
+            self.next_target = self.next_target.cuda(non_blocking=True)
+            # more code for the alternative if record_stream() doesn't work:
+            # copy_ will record the use of the pinned source tensor in this side stream.
+            # self.next_input_gpu.copy_(self.next_input, non_blocking=True)
+            # self.next_target_gpu.copy_(self.next_target, non_blocking=True)
+            # self.next_input = self.next_input_gpu
+            # self.next_target = self.next_target_gpu
+
+            # With Amp, it isn't necessary to manually convert data to half.
+            # if args.fp16:
+            #     self.next_input = self.next_input.half()
+            # else:
+            self.next_input = self.next_input.float()
+            self.next_input = self.next_input.sub_(self.mean).div_(self.std)
+
+    def next(self):
+        torch.cuda.current_stream().wait_stream(self.stream)
+        input = self.next_input
+        target = self.next_target
+        if input is not None:
+            input.record_stream(torch.cuda.current_stream())
+        if target is not None:
+            target.record_stream(torch.cuda.current_stream())
+        self.preload()
+        return input, target
+
+
 def main():
     args = parser.parse_args()
 
@@ -85,13 +145,13 @@ def main():
                       'You may see unexpected behavior when restarting '
                       'from checkpoints.')
 
-    mp.spawn(main_worker, nprocs=2, args=(2, args))
+    main_worker(args.local_rank, 4, args)
 
 
 def main_worker(gpu, ngpus_per_node, args):
     global best_acc1
 
-    dist.init_process_group(backend='nccl', init_method='tcp://127.0.0.1:23456', world_size=2, rank=gpu)
+    dist.init_process_group(backend='nccl')
     # create model
     if args.pretrained:
         print("=> using pre-trained model '{}'".format(args.arch))
@@ -101,17 +161,20 @@ def main_worker(gpu, ngpus_per_node, args):
         model = models.__dict__[args.arch]()
 
     torch.cuda.set_device(gpu)
-    model.cuda(gpu)
+    model.cuda()
     # When using a single GPU per process and per
     # DistributedDataParallel, we need to divide the batch size
     # ourselves based on the total number of GPUs we have
     args.batch_size = int(args.batch_size / ngpus_per_node)
-    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[gpu])
 
     # define loss function (criterion) and optimizer
-    criterion = nn.CrossEntropyLoss().cuda(gpu)
+    criterion = nn.CrossEntropyLoss().cuda()
 
     optimizer = torch.optim.SGD(model.parameters(), args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+
+    model, optimizer = amp.initialize(model,
+                                      optimizer)
+    model = DistributedDataParallel(model)
 
     cudnn.benchmark = True
 
@@ -134,7 +197,7 @@ def main_worker(gpu, ngpus_per_node, args):
     train_loader = torch.utils.data.DataLoader(train_dataset,
                                                batch_size=args.batch_size,
                                                shuffle=(train_sampler is None),
-                                               num_workers=args.workers,
+                                               num_workers=2,
                                                pin_memory=True,
                                                sampler=train_sampler)
 
@@ -148,14 +211,14 @@ def main_worker(gpu, ngpus_per_node, args):
         ])),
                                              batch_size=args.batch_size,
                                              shuffle=False,
-                                             num_workers=args.workers,
+                                             num_workers=2,
                                              pin_memory=True)
 
     if args.evaluate:
         validate(val_loader, model, criterion, gpu, args)
         return
 
-    log_csv = "multiprocessing_distributed.csv"
+    log_csv = "apex_distributed.csv"
 
     for epoch in range(args.start_epoch, args.epochs):
         epoch_start = time.time()
@@ -179,7 +242,7 @@ def main_worker(gpu, ngpus_per_node, args):
             csv_write = csv.writer(f)
             data_row = [time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(epoch_start)), epoch_end - epoch_start]
             csv_write.writerow(data_row)
-
+            
         save_checkpoint(
             {
                 'epoch': epoch + 1,
@@ -202,12 +265,12 @@ def train(train_loader, model, criterion, optimizer, epoch, gpu, args):
     model.train()
 
     end = time.time()
-    for i, (images, target) in enumerate(train_loader):
+    prefetcher = data_prefetcher(train_loader)
+    images, target = prefetcher.next()
+    i = 0
+    while images is not None:
         # measure data loading time
         data_time.update(time.time() - end)
-
-        images = images.cuda(gpu, non_blocking=True)
-        target = target.cuda(gpu, non_blocking=True)
 
         # compute output
         output = model(images)
@@ -221,7 +284,8 @@ def train(train_loader, model, criterion, optimizer, epoch, gpu, args):
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
-        loss.backward()
+        with amp.scale_loss(loss, optimizer) as scaled_loss:
+            scaled_loss.backward()
         optimizer.step()
 
         # measure elapsed time
@@ -230,6 +294,10 @@ def train(train_loader, model, criterion, optimizer, epoch, gpu, args):
 
         if i % args.print_freq == 0:
             progress.display(i)
+
+        i += 1
+
+        images, target = prefetcher.next()
 
 
 def validate(val_loader, model, criterion, gpu, args):
@@ -244,9 +312,10 @@ def validate(val_loader, model, criterion, gpu, args):
 
     with torch.no_grad():
         end = time.time()
-        for i, (images, target) in enumerate(val_loader):
-            images = images.cuda(gpu, non_blocking=True)
-            target = target.cuda(gpu, non_blocking=True)
+        prefetcher = data_prefetcher(val_loader)
+        images, target = prefetcher.next()
+        i = 0
+        while images is not None:
 
             # compute output
             output = model(images)
@@ -264,6 +333,10 @@ def validate(val_loader, model, criterion, gpu, args):
 
             if i % args.print_freq == 0:
                 progress.display(i)
+
+            i += 1
+
+            images, target = prefetcher.next()
 
         # TODO: this should also be done with the ProgressMeter
         print(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'.format(top1=top1, top5=top5))
