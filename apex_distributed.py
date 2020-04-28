@@ -29,7 +29,7 @@ model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__") and callable(models.__dict__[name]))
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
-parser.add_argument('--data', metavar='DIR', default='/home/zhangzhi/Data/ImageNet2012', help='path to dataset')
+parser.add_argument('--data', metavar='DIR', default='./ImageNet2012', help='path to dataset')
 parser.add_argument('-a',
                     '--arch',
                     metavar='ARCH',
@@ -42,11 +42,11 @@ parser.add_argument('-j',
                     type=int,
                     metavar='N',
                     help='number of data loading workers (default: 4)')
-parser.add_argument('--epochs', default=90, type=int, metavar='N', help='number of total epochs to run')
+parser.add_argument('--epochs', default=1, type=int, metavar='N', help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N', help='manual epoch number (useful on restarts)')
 parser.add_argument('-b',
                     '--batch-size',
-                    default=6400,
+                    default=800,
                     type=int,
                     metavar='N',
                     help='mini-batch size (default: 6400), this is the total '
@@ -145,7 +145,7 @@ def main():
                       'You may see unexpected behavior when restarting '
                       'from checkpoints.')
 
-    main_worker(args.local_rank, 4, args)
+    main_worker(args.local_rank, 2, args)
 
 
 def main_worker(gpu, ngpus_per_node, args):
@@ -197,7 +197,7 @@ def main_worker(gpu, ngpus_per_node, args):
     train_loader = torch.utils.data.DataLoader(train_dataset,
                                                batch_size=args.batch_size,
                                                shuffle=(train_sampler is None),
-                                               num_workers=2,
+                                               num_workers=args.num_workers,
                                                pin_memory=True,
                                                sampler=train_sampler)
 
@@ -211,7 +211,7 @@ def main_worker(gpu, ngpus_per_node, args):
         ])),
                                              batch_size=args.batch_size,
                                              shuffle=False,
-                                             num_workers=2,
+                                             num_workers=args.workers,
                                              pin_memory=True)
 
     if args.evaluate:

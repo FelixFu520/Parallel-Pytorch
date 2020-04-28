@@ -29,7 +29,7 @@ model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__") and callable(models.__dict__[name]))
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
-parser.add_argument('--data', metavar='DIR', default='/home/zhangzhi/Data/ImageNet2012', help='path to dataset')
+parser.add_argument('--data', metavar='DIR', default='./ImageNet2012', help='path to dataset')
 parser.add_argument('-a',
                     '--arch',
                     metavar='ARCH',
@@ -42,11 +42,11 @@ parser.add_argument('-j',
                     type=int,
                     metavar='N',
                     help='number of data loading workers (default: 4)')
-parser.add_argument('--epochs', default=90, type=int, metavar='N', help='number of total epochs to run')
+parser.add_argument('--epochs', default=1, type=int, metavar='N', help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N', help='manual epoch number (useful on restarts)')
 parser.add_argument('-b',
                     '--batch-size',
-                    default=6400,
+                    default=800,
                     type=int,
                     metavar='N',
                     help='mini-batch size (default: 6400), this is the total '
@@ -145,13 +145,15 @@ def main():
                       'You may see unexpected behavior when restarting '
                       'from checkpoints.')
 
-    main_worker(args.local_rank, 4, args)
+    main_worker(args.local_rank, 2, args)
 
 
 def main_worker(gpu, ngpus_per_node, args):
     global best_acc1
-
+    print("args.local_rank:", type(gpu), ",", gpu, ",", [gpu])
+    
     dist.init_process_group(backend='nccl')
+    print("rank:", torch.distributed.get_rank())
     # create model
     if args.pretrained:
         print("=> using pre-trained model '{}'".format(args.arch))
@@ -161,14 +163,14 @@ def main_worker(gpu, ngpus_per_node, args):
         model = models.__dict__[args.arch]()
 
     torch.cuda.set_device(gpu)
-    model.cuda()
+    model.cuda(gpu)
     # When using a single GPU per process and per
     # DistributedDataParallel, we need to divide the batch size
     # ourselves based on the total number of GPUs we have
     args.batch_size = int(args.batch_size / ngpus_per_node)
 
     # define loss function (criterion) and optimizer
-    criterion = nn.CrossEntropyLoss().cuda()
+    criterion = nn.CrossEntropyLoss().cuda(gpu)
 
     optimizer = torch.optim.SGD(model.parameters(), args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
 
