@@ -93,7 +93,6 @@ def main():
 
 def main_worker(gpu, ngpus_per_node, args):
     global best_acc1
-
     # create model
     if args.pretrained:
         print("=> using pre-trained model '{}'".format(args.arch))

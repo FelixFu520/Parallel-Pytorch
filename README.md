@@ -407,6 +407,7 @@ CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 a
 #### [APEX官方案例](./main_amp.py)
 https://github.com/NVIDIA/apex/tree/master/examples/imagenet 
 ### 7、[Horovod](horovod_distributed.py) 的优雅实现
+Horovod我没有复现，所以原封不动抄下原作者的。   
 
 > Horovod 是 Uber 开源的深度学习工具，它的发展吸取了 Facebook "Training ImageNet In 1 Hour" 与百度 "Ring Allreduce" 的优点，可以无痛与 PyTorch/Tensorflow 等深度学习框架结合，实现并行训练。
 
