@@ -509,5 +509,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 horovodrun -np 4 -H localhost:4 --verbose python ma
 ```
 
 ## 多机多卡分布式
-### 8、torch.multiprocessing & apex & torch.nn.parallel.DistributedDataParallel
+### 8、[torch.multiprocessing & apex & torch.nn.parallel.DistributedDataParallel](./distributed_all.py)
+NCCL_SOCKET_IFNAME=ib0 NCCL_IB_DISABLE=1 python main.py -b 512 --dist-url 'tcp://192.168.33.11:28237' --dist-backend 'nccl' --multiprocessing-distributed --world-size 2 --rank 0
 
+NCCL_SOCKET_IFNAME=ib0 NCCL_IB_DISABLE=1 python main.py -b 512 --dist-url 'tcp://192.168.33.11:28237' --dist-backend 'nccl' --multiprocessing-distributed --world-size 2 --rank 1
