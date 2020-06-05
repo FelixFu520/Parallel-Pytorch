@@ -71,6 +71,18 @@ parser.add_argument('--seed', default=None, type=int, help='seed for initializin
 
 best_acc1 = 0
 
+class Ds(torch.utils.data.Dataset):
+    def __init__(self):
+        self.roidb = [0 for i in range(100000)]
+
+    def __getitem__(self, index):
+        id = self.roidb[index]
+        return torch.randn(3,224,224), torch.tensor(1,dtype=torch.long)
+
+    def __len__(self):
+        return len(self.roidb)
+
+
 
 def main():
     args = parser.parse_args()
