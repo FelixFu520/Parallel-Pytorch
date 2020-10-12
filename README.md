@@ -1,14 +1,16 @@
 # Pytorch所使用的集中分布式
-参考链接：https://github.com/tczhangzhi/pytorch-distributed
+2020年10月12日
 
-## 1、介绍
+---
+
+**1、介绍**
+
 单卡早已不能满足训练需求，所以目前多卡训练占据主要地位，多卡主要分为单机多卡和多机多卡，
 每种框架（Pytorch、TensorFlow、MxNet等）
 都有自己的多卡实现方式，本文主要介绍Pytorch实现多卡训练的集中方式。    
 
-需要的朋友可以把这个当作入门资料，也可以参考
-[原文](https://github.com/tczhangzhi/pytorch-distributed),
-如果有看不懂的地方，可以邮箱联系我，fufaloveguomengkai@163.com. 
+需要的朋友可以把这个当作入门资料，也可以参考[原文](https://github.com/tczhangzhi/pytorch-distributed),
+如果有看不懂的地方，可以邮箱联系我，alanmathisonturing@163.com. 
 
 
 学习顺序：    
@@ -28,7 +30,7 @@
 * 实现方式1：原作者使用ImageNet数据集，我已经将ImageNet上传到百度云。
 * 实现方式2：因为ImageNet过于大，使用起来不方便，所以使用虚假数据集。
 
-## 2、环境
+**2、环境**
 
 原文作者记录了使用 4 块 Tesla V100-PICE 在 ImageNet 进行了运行时间的测试，测试结果发现 **Apex 的加速效果最好，但与 Horovod/Distributed 差别不大**，平时可以直接使用内置的 Distributed。**Dataparallel 较慢，不推荐使用**。（后续会补上 V100/K80 上的测试结果，穿插了一些试验所以中断了）
 
@@ -42,7 +44,6 @@ NCCL 2.4
 torch 1.2.0
 torchvision 0.4.0
 apex 0.1
-
 ```
 ## 单机多卡
 ### 3、简单方便的 [nn.DataParallel](./dataparallel.py)
@@ -126,8 +127,7 @@ send 和 receive 等等。通过 MPI 实现 CPU 通信，通过 NCCL 实现 GPU 
 与 DataParallel 的单进程控制多 GPU 不同，在 distributed 的帮助下，我们只需要编写一份代码，
 torch 就会自动将其分配给 n 个进程，分别在 n 个 GPU 上运行。
 
-在 API 层面，pytorch 为我们提供了 torch.distributed.launch 启动器，
-用于在命令行分布式地执行 python 文件。在执行过程中，启动器会将当前进程的（其实就是 GPU的）index 通过参数传递给 python，
+在 API 层面，pytorch 为我们提供了 torch.distributed.launch 启动器，用于在命令行分布式地执行 python 文件。在执行过程中，启动器会将当前进程的（其实就是 GPU的）index 通过参数传递给 python，
 我们可以这样获得当前进程的 index：
 
 ```text
@@ -513,3 +513,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 horovodrun -np 4 -H localhost:4 --verbose python ma
 NCCL_SOCKET_IFNAME=ib0 NCCL_IB_DISABLE=1 python main.py -b 512 --dist-url 'tcp://192.168.33.11:28237' --dist-backend 'nccl' --multiprocessing-distributed --world-size 2 --rank 0
 
 NCCL_SOCKET_IFNAME=ib0 NCCL_IB_DISABLE=1 python main.py -b 512 --dist-url 'tcp://192.168.33.11:28237' --dist-backend 'nccl' --multiprocessing-distributed --world-size 2 --rank 1
+
+## 参考
+
+链接：https://github.com/tczhangzhi/pytorch-distributed
