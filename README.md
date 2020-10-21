@@ -515,5 +515,10 @@ NCCL_SOCKET_IFNAME=ib0 NCCL_IB_DISABLE=1 python main.py -b 512 --dist-url 'tcp:/
 NCCL_SOCKET_IFNAME=ib0 NCCL_IB_DISABLE=1 python main.py -b 512 --dist-url 'tcp://192.168.33.11:28237' --dist-backend 'nccl' --multiprocessing-distributed --world-size 2 --rank 1
 
 ## 参考
+https://zhuanlan.zhihu.com/p/98535650
+
+https://blog.csdn.net/m0_38008956/article/details/86559432
 
 链接：https://github.com/tczhangzhi/pytorch-distributed
+
+
